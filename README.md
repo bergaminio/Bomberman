@@ -5,7 +5,10 @@ To practice the OOP paradigma with JAVA
 - Have Fun
 - Branches  
 <img width="480" height="480" alt="KonataLuckyStarGIF" src="https://github.com/user-attachments/assets/8f8ac9a1-8c11-4443-a2c6-1ae8dd788857" />
-Ordnerstruktur
+   ## Ordnerstruktur
+
+  ```text
+  bomberman/
   ├─ Main.java
   ├─ common/
   │  ├─ Position.java
@@ -33,11 +36,11 @@ Ordnerstruktur
   ├─ persistence/
   │  ├─ HighscoreRepository.java
   │  └─ MapRepository.java
-  └─ ui/
-     └─ ConsoleView.java
-     
-  network/
-  ├─ GameServer.java
-  ├─ GameClient.java
-  ├─ ClientHandler.java
-  └─ Message.java
+  ├─ ui/
+  │  └─ ConsoleView.java
+  └─ network/
+     ├─ GameServer.java
+     ├─ GameClient.java
+     ├─ ClientHandler.java
+     └─ Message.java
+  ```
