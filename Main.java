@@ -1,155 +1,186 @@
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
+import bomb.Bomb;
+import bomb.Explosion;
 import common.Direction;
 import common.Position;
+import map.Block;
+import map.BlockType;
 import map.GameMap;
 import map.Tile;
 import player.Player;
-import service.MapValidator;
+import service.BombService;
 import service.MovementService;
 
 public class Main {
     public static void main(String[] args) {
-        showPositionIsAValue();
-        showSharedPositionIsSafe();
-        showMovement();
-        showOutsideMap();
+        showCountdownAndEscape();
+        showBombCapacity();
+        showBlastStops();
+        showChainReaction();
     }
 
-    private static void showPositionIsAValue() {
-        System.out.println("=== 1) Position ist ein Wert, kein Objekt-Identitaetsvergleich ===");
+    private static void showCountdownAndEscape() {
+        System.out.println("=== 1) Bombe legen, weglaufen, Zuender ablaufen lassen ===");
 
-        Position a = new Position(3, 4);
-        Position b = new Position(3, 4);
-
-        System.out.println("a = " + a + ", b = " + b);
-        System.out.println("a == b       -> " + (a == b) + "   (zwei verschiedene Objekte)");
-        System.out.println("a.equals(b)  -> " + a.equals(b) + "    (gleicher Wert)");
-
-        Set<Position> visited = new HashSet<>();
-        visited.add(a);
-        visited.add(b);
-        System.out.println("HashSet mit a und b enthaelt " + visited.size() + " Eintrag");
-        System.out.println("(ohne hashCode() waeren es 2)\n");
-    }
-
-    private static void showSharedPositionIsSafe() {
-        System.out.println("=== 2) Zwei Spieler teilen sich dieselbe Position-Instanz ===");
-
-        GameMap map = GameMap.generateStandardMap(13, 11, 42);
+        GameMap map = room(11, 7);
+        BombService bombs = new BombService();
         MovementService movement = new MovementService();
 
-        Position shared = new Position(1, 1);
-        Player anna = new Player("Anna", shared);
-        Player ben = new Player("Ben", shared);
+        List<Bomb> activeBombs = new ArrayList<>();
+        List<Explosion> explosions = new ArrayList<>();
+        Player player = new Player("Michael", new Position(1, 1));
 
-        System.out.println("vorher:  Anna " + anna.getPosition() + ", Ben " + ben.getPosition());
-        movement.tryMove(anna, Direction.RIGHT, map);
-        System.out.println("nachher: Anna " + anna.getPosition() + ", Ben " + ben.getPosition());
-        System.out.println("Ben steht noch da, weil move() ein neues Objekt liefert\n");
+        bombs.placeBomb(player, activeBombs);
+        System.out.println("Bombe gelegt, Zuender " + activeBombs.get(0).getFuseTicks()
+            + ", Konto " + player.getActiveBombs() + "/" + player.getBombCapacity());
+        print(map, player, activeBombs, explosions);
+
+        for (int tick = 1; tick <= 3; tick++) {
+            explosions.addAll(bombs.tickBombs(activeBombs, map));
+            movement.tryMove(player, Direction.RIGHT, map);
+
+            System.out.println("nach Tick " + tick + ":");
+            print(map, player, activeBombs, explosions);
+        }
+
+        System.out.println("Konto nach der Explosion: " + player.getActiveBombs()
+            + "/" + player.getBombCapacity());
+
+        bombs.tickExplosions(explosions);
+        System.out.println("Nach einem weiteren Tick sind noch " + explosions.size()
+            + " Explosionen uebrig.\n");
     }
 
-    private static void showMovement() {
-        System.out.println("=== 3) Bewegung auf der Standardmap ===");
+    private static void showBombCapacity() {
+        System.out.println("=== 2) Kapazitaet: ein Spieler, eine Bombe ===");
 
-        GameMap map = GameMap.generateStandardMap(13, 11, 42);
+        GameMap map = room(11, 7);
+        BombService bombs = new BombService();
         MovementService movement = new MovementService();
-        Player player = new Player("Michael", map.getSpawnPositions().get(0));
 
-        print(map, player);
-        System.out.println("Bomben: " + player.getActiveBombs() + "/" + player.getBombCapacity()
-            + ", Radius " + player.getBlastRadius() + "\n");
+        List<Bomb> activeBombs = new ArrayList<>();
+        Player player = new Player("Michael", new Position(1, 1));
 
-        walk(movement, player, map, Direction.RIGHT);
-        walk(movement, player, map, Direction.RIGHT);
-        walk(movement, player, map, Direction.DOWN);
-        walk(movement, player, map, Direction.UP);
-        walk(movement, player, map, Direction.LEFT);
-        walk(movement, player, map, Direction.DOWN);
+        System.out.println("1. Bombe: " + describe(bombs.placeBomb(player, activeBombs)));
+        movement.tryMove(player, Direction.RIGHT, map);
+        System.out.println("2. Bombe: " + describe(bombs.placeBomb(player, activeBombs))
+            + "  (Kapazitaet erschoepft)");
 
-        System.out.println();
-        print(map, player);
-
-        System.out.println("Und als Toter (UP waere frei):");
-        player.die();
-        walk(movement, player, map, Direction.UP);
-        System.out.println();
+        movement.tryMove(player, Direction.LEFT, map);
+        System.out.println("3. Versuch auf dem Feld der 1. Bombe: "
+            + describe(bombs.placeBomb(player, activeBombs)) + "\n");
     }
 
-    private static void showOutsideMap() {
-        System.out.println("=== 4) Map ohne Rand: die Grenzpruefung faengt es ab ===");
+    private static void showBlastStops() {
+        System.out.println("=== 3) Wo der Feuerstrahl endet (Radius 3) ===");
 
-        GameMap open = new GameMap(9, 9);
-        MovementService movement = new MovementService();
-        Player player = new Player("Michael", new Position(0, 0));
+        GameMap map = room(11, 7);
+        map.getTile(new Position(8, 3)).setBlock(new Block(BlockType.INDESTRUCTIBLE));
+        map.getTile(new Position(3, 3)).setBlock(new Block(BlockType.DESTROYABLE));
 
-        walk(movement, player, open, Direction.LEFT);
-        walk(movement, player, open, Direction.UP);
-        walk(movement, player, open, Direction.RIGHT);
-        System.out.println();
+        BombService bombs = new BombService();
+        List<Bomb> activeBombs = new ArrayList<>();
+        Player player = new Player("Michael", new Position(1, 5));
+
+        Bomb bomb = new Bomb(player, new Position(5, 3), 3, 1);
+        activeBombs.add(bomb);
+        player.bombPlaced();
+
+        System.out.println("vorher:");
+        print(map, player, activeBombs, new ArrayList<>());
+
+        List<Explosion> explosions = bombs.tickBombs(activeBombs, map);
+        System.out.println("nachher:");
+        print(map, player, activeBombs, explosions);
+
+        System.out.println("links  bei 3/3 vom zerstoerbaren Block geschluckt, er ist jetzt weg");
+        System.out.println("rechts bei 8/3 vor der Mauer gestoppt, 8/3 selbst bleibt heil");
+        System.out.println("oben und unten vom Rand gestoppt");
+        System.out.println("getroffene Felder: " + explosions.get(0).getAffectedPositions().size() + "\n");
     }
 
-    private static void walk(MovementService movement, Player player, GameMap map, Direction direction) {
-        Position before = player.getPosition();
-        boolean moved = movement.tryMove(player, direction, map);
+    private static void showChainReaction() {
+        System.out.println("=== 4) Kettenreaktion ===");
 
-        String result = moved
-            ? "ok         " + before + " -> " + player.getPosition()
-            : "blockiert  bleibt auf " + player.getPosition() + reasonFor(map, before, direction, player);
+        GameMap map = room(11, 7);
+        BombService bombs = new BombService();
+        List<Bomb> activeBombs = new ArrayList<>();
+        Player player = new Player("Michael", new Position(1, 5));
 
-        System.out.printf("%-6s %s%n", direction, result);
+        Bomb first = new Bomb(player, new Position(2, 3), 3, 1);
+        Bomb second = new Bomb(player, new Position(5, 3), 2, 3);
+        activeBombs.add(first);
+        activeBombs.add(second);
+        player.bombPlaced();
+        player.bombPlaced();
+
+        System.out.println("Bombe A auf 2/3 mit Zuender 1, Bombe B auf 5/3 mit Zuender 3");
+        print(map, player, activeBombs, new ArrayList<>());
+
+        List<Explosion> explosions = bombs.tickBombs(activeBombs, map);
+
+        System.out.println("nach einem Tick: A war faellig, ihr Feuer hat B mitgerissen");
+        print(map, player, activeBombs, explosions);
+        System.out.println("Explosionen in diesem Tick: " + explosions.size()
+            + ", B hatte Zuender " + second.getFuseTicks() + " statt 2\n");
     }
 
-    // Gleiche Reihenfolge wie in tryMove(), sonst zeigt die Begruendung
-    // einen Grund an, der gar nicht der ausschlaggebende war.
-    private static String reasonFor(GameMap map, Position from, Direction direction, Player player) {
-        if (!player.isAlive()) {
-            return "  (Spieler ist tot)";
+    private static String describe(Bomb bomb) {
+        return bomb == null ? "abgelehnt" : "gelegt auf " + bomb.getPosition();
+    }
+
+    // Leerer Raum mit geschlossenem Rand, damit die Demos uebersichtlich bleiben.
+    private static GameMap room(int width, int height) {
+        GameMap map = new GameMap(width, height);
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (x == 0 || y == 0 || x == width - 1 || y == height - 1) {
+                    map.getTile(new Position(x, y)).setBlock(new Block(BlockType.INDESTRUCTIBLE));
+                }
+            }
         }
 
-        Position target = from.move(direction);
-
-        if (!map.isInsideMap(target)) {
-            return "  (ausserhalb der Map)";
-        }
-
-        Tile tile = map.getTile(target);
-        if (!tile.isWalkable()) {
-            return tile.getBlock().isDestroyable() ? "  (zerstoerbarer Block)" : "  (Mauer)";
-        }
-
-        return "  (unbekannt)";
+        return map;
     }
 
     // Kommt spaeter nach ui/ConsoleView, hier nur damit man das Ergebnis sieht.
-    private static void print(GameMap map, Player player) {
-        List<Position> spawns = map.getSpawnPositions();
-
+    private static void print(GameMap map, Player player, List<Bomb> bombs, List<Explosion> explosions) {
         for (int y = 0; y < map.getHeight(); y++) {
             StringBuilder line = new StringBuilder();
 
             for (int x = 0; x < map.getWidth(); x++) {
-                Position position = new Position(x, y);
-                line.append(symbolFor(map.getTile(position), spawns, position, player)).append(' ');
+                line.append(symbolFor(map, new Position(x, y), player, bombs, explosions)).append(' ');
             }
 
             System.out.println(line.toString());
         }
+        System.out.println();
     }
 
-    private static char symbolFor(Tile tile, List<Position> spawns, Position position, Player player) {
-        if (player != null && player.getPosition().equals(position)) {
+    private static char symbolFor(GameMap map, Position position, Player player,
+                                  List<Bomb> bombs, List<Explosion> explosions) {
+        for (Explosion explosion : explosions) {
+            if (explosion.covers(position)) {
+                return '*';
+            }
+        }
+
+        if (player.getPosition().equals(position)) {
             return player.isAlive() ? 'P' : 'x';
         }
 
-        if (tile.getBlock() != null) {
-            return tile.getBlock().isDestroyable() ? 'o' : '#';
+        for (Bomb bomb : bombs) {
+            if (bomb.getPosition().equals(position)) {
+                return (char) ('0' + bomb.getFuseTicks());
+            }
         }
 
-        if (spawns.contains(position)) {
-            return (char) ('1' + spawns.indexOf(position));
+        Tile tile = map.getTile(position);
+        if (tile.getBlock() != null) {
+            return tile.getBlock().isDestroyable() ? 'o' : '#';
         }
 
         return '.';
