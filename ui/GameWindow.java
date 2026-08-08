@@ -96,6 +96,26 @@ public class GameWindow extends JFrame {
         });
     }
 
+    // Die naechsten drei nur vom Event-Dispatch-Thread aufrufen, also aus
+    // dem Timer oder aus einer Tastenaktion. Sie zeichnen sofort, ohne den
+    // Umweg ueber invokeLater.
+    public void advanceTo(Game game) {
+        panel.advanceTo(game);
+    }
+
+    // Ohne Animation, fuer den Rundenstart.
+    public void setGameImmediately(Game game) {
+        panel.setGame(game);
+    }
+
+    public void setProgress(float progress) {
+        panel.setProgress(progress);
+    }
+
+    public void repaintBoard() {
+        panel.repaint();
+    }
+
     public void showHint(String hintText) {
         SwingUtilities.invokeLater(() -> hint.setText(hintText));
     }
@@ -136,14 +156,25 @@ public class GameWindow extends JFrame {
         return line.toString();
     }
 
+    // Zwei Bindungen pro Taste: eine fuers Druecken, eine fuers Loslassen.
+    // Nur so weiss das Spiel, ob eine Richtung noch gehalten wird - sonst
+    // muesste man pro Feld einmal antippen.
     private void bind(int keyCode, int playerIndex, Action action) {
         String name = "player" + playerIndex + "-key" + keyCode;
 
-        inputMap().put(KeyStroke.getKeyStroke(keyCode, 0), name);
-        actionMap().put(name, new AbstractAction() {
+        inputMap().put(KeyStroke.getKeyStroke(keyCode, 0, false), name + "-pressed");
+        actionMap().put(name + "-pressed", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent event) {
-                input.onAction(playerIndex, action);
+                input.onPressed(playerIndex, action);
+            }
+        });
+
+        inputMap().put(KeyStroke.getKeyStroke(keyCode, 0, true), name + "-released");
+        actionMap().put(name + "-released", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                input.onReleased(playerIndex, action);
             }
         });
     }
