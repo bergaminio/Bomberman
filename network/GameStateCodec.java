@@ -1,5 +1,7 @@
 package network;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,6 +78,23 @@ public class GameStateCodec {
         lines.add(END);
 
         return lines;
+    }
+
+    // Liest die Zeilen eines Zustands bis zur Endmarke. Beide Clients,
+    // der auf der Konsole und der im Fenster, benutzen dieselbe Stelle.
+    public static Game readFrom(BufferedReader reader) throws IOException {
+        List<String> lines = new ArrayList<>();
+        String line;
+
+        while ((line = reader.readLine()) != null) {
+            if (line.equals(END)) {
+                return decode(lines);
+            }
+
+            lines.add(line);
+        }
+
+        throw new IOException("Verbindung mitten im Spielstand abgerissen.");
     }
 
     public static Game decode(List<String> lines) {
