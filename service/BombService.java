@@ -16,6 +16,21 @@ import map.Tile;
 import player.Player;
 
 public class BombService {
+    private final int fuseTicks;
+    private final int explosionTicks;
+
+    // Standardwerte passen zum rundenbasierten Spiel: drei Zuege Zeit zum
+    // Fliehen, ein Zug Feuer.
+    public BombService() {
+        this(Bomb.DEFAULT_FUSE_TICKS, Explosion.DEFAULT_DURATION_TICKS);
+    }
+
+    // Im Fenster laeuft ein Tick nur rund 200 ms. Dort braucht es viel mehr
+    // Ticks fuer dieselbe gefuehlte Zeit, darum sind beide Werte einstellbar.
+    public BombService(int fuseTicks, int explosionTicks) {
+        this.fuseTicks = fuseTicks;
+        this.explosionTicks = explosionTicks;
+    }
 
     // Liefert die gelegte Bombe oder null, wenn es nicht ging.
     public Bomb placeBomb(Player player, List<Bomb> bombs) {
@@ -26,7 +41,7 @@ public class BombService {
             return null;
         }
 
-        Bomb bomb = new Bomb(player, player.getPosition());
+        Bomb bomb = new Bomb(player, player.getPosition(), player.getBlastRadius(), fuseTicks);
         bombs.add(bomb);
         player.bombPlaced();
         return bomb;
@@ -84,7 +99,7 @@ public class BombService {
             }
 
             List<Position> affected = calculateBlast(bomb, map);
-            explosions.add(new Explosion(affected));
+            explosions.add(new Explosion(affected, explosionTicks));
 
             bombs.remove(bomb);
             bomb.getOwner().bombExploded();

@@ -152,8 +152,12 @@ public class SwingClient implements PlayerInput {
 
     // Laeuft auf dem EDT. Der Schreibvorgang ist ein kurzer Schreibbefehl
     // in einen lokalen Socket-Puffer, das darf der EDT machen.
+    //
+    // onReleased wird nicht gebraucht: hier zaehlt ein Zug pro Runde, nicht
+    // wie lange jemand die Taste haelt. Die Standardmethode der Schnitt-
+    // stelle tut nichts, und das ist hier genau richtig.
     @Override
-    public void onAction(int playerIndex, Action action) {
+    public void onPressed(int playerIndex, Action action) {
         PrintWriter target = writer;
 
         if (!myTurn || target == null) {

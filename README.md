@@ -66,11 +66,16 @@ werden.
 
 Ein falscher Modus zeigt diese Liste an.
 
-**Lokal ist Echtzeit, im Netzwerk rundenbasiert.** Im Fenster tickt ein Timer
-alle 450 ms weiter, alle druecken gleichzeitig. Der Server dagegen wartet pro
-Runde auf einen Zug von jedem -- das haelt den Konsolen-Client lauffaehig
-(`Scanner.nextLine()` blockiert nun mal) und braucht ueber einen Hotspot keinen
-Lag-Ausgleich.
+**Lokal ist Echtzeit, im Netzwerk rundenbasiert.** Im Fenster laeuft die
+Spiellogik in Schritten von 220 ms, gezeichnet wird mit 60 Bildern pro Sekunde
+-- dazwischen wird die Figur interpoliert, damit sie gleitet statt zu springen.
+Richtungstaste gedrueckt halten laeuft weiter. Der Zuender ist dort 9 Ticks
+lang, also rund zwei Sekunden.
+
+Der Server dagegen wartet pro Runde auf einen Zug von jedem. Das haelt den
+Konsolen-Client lauffaehig (`Scanner.nextLine()` blockiert nun mal) und braucht
+ueber einen Hotspot keinen Lag-Ausgleich. Auf der Konsole bleibt der Zuender
+bei 3 Zuegen.
 
 Maps sind Textdateien: `#` unzerstoerbare Mauer, `o` zerstoerbarer Block,
 `.` Boden. Der Rand muss geschlossen und alle vier Ecken erreichbar sein,

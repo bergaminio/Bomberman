@@ -9,29 +9,42 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import common.Action;
+import common.Direction;
 import game.Game;
 import game.GameStatus;
 import map.GameMap;
 import persistence.HighscoreRepository;
 import persistence.MapRepository;
 import player.Player;
+import service.BombService;
 import service.GameService;
+import service.MovementService;
 
 // Das lokale Spiel im Fenster, in Echtzeit.
 //
-// Ein Timer ticht die Welt weiter, statt auf eine Eingabe zu warten. Genau
-// das ging auf der Konsole nicht: Scanner.nextLine() blockiert, bis jemand
-// Enter drueckt. Tastenereignisse blockieren nicht - deshalb faellt hier
-// der Grund fuers Rundenmodell weg.
+// Zwei Taktgeber, bewusst getrennt:
+//   - die Spiellogik laeuft in festen Schritten von TICK_MS
+//   - gezeichnet wird mit rund 60 Bildern pro Sekunde
 //
-// GameService und Game bleiben unveraendert. Der Timer ruft dieselben
-// Methoden auf wie vorher die Konsolenschleife.
+// Dazwischen interpoliert das GamePanel. Die Logik bleibt dadurch
+// rasterbasiert und vorhersagbar, die Bewegung sieht trotzdem fluessig aus.
+// Wuerde man die Logik einfach 60-mal pro Sekunde ticken lassen, rasten die
+// Figuren mit 60 Feldern pro Sekunde ueber die Karte.
 public class SwingGame implements PlayerInput {
-    private static final int TICK_MS = 450;
+    private static final int TICK_MS = 220;
+    private static final long TICK_NANOS = TICK_MS * 1_000_000L;
+    private static final int FRAME_MS = 16;
+
+    // Bei 220 ms pro Tick sind das rund zwei Sekunden Zuender und gut eine
+    // halbe Sekunde Feuer. Auf der Konsole bleiben es 3 und 1 Zug.
+    private static final int FUSE_TICKS = 9;
+    private static final int EXPLOSION_TICKS = 3;
+
     private static final int MAP_WIDTH = 13;
     private static final int MAP_HEIGHT = 11;
 
-    private final GameService service = new GameService();
+    private final GameService service = new GameService(
+        new MovementService(), new BombService(FUSE_TICKS, EXPLOSION_TICKS));
     private final HighscoreRepository highscores = new HighscoreRepository();
     private final List<PlayerKeys> keys = PlayerKeys.defaults();
     private final Path mapFile;
@@ -41,9 +54,12 @@ public class SwingGame implements PlayerInput {
     private Game game;
     private Timer timer;
 
-    // Was jeder Spieler seit dem letzten Tick zuletzt gedrueckt hat.
-    // Nur der letzte Tastendruck zaehlt, sonst staut sich Eingabe auf.
-    private Action[] pending;
+    // Welche Richtungen gerade gehalten werden, zuletzt gedrueckte zuletzt.
+    private List<List<Direction>> held;
+    private boolean[] bombRequested;
+
+    private long lastFrameNanos;
+    private long accumulator;
 
     public SwingGame(int playerCount, Path mapFile) {
         this.playerCount = playerCount;
@@ -62,10 +78,9 @@ public class SwingGame implements PlayerInput {
             return;
         }
 
-        game = newGame(map);
-        pending = new Action[game.getPlayers().size()];
-
         window = new GameWindow("Bomberman", this);
+        startRound(map);
+
         for (int i = 0; i < game.getPlayers().size(); i++) {
             window.bindPlayer(i, keys.get(i));
         }
@@ -74,70 +89,125 @@ public class SwingGame implements PlayerInput {
 
         window.open();
 
-        service.start(game);
-        draw();
-
-        timer = new Timer(TICK_MS, event -> tick());
+        timer = new Timer(FRAME_MS, event -> frame());
         timer.start();
+    }
+
+    // Ein Bild. Holt so viele Logikschritte nach, wie seit dem letzten Bild
+    // faellig geworden sind, und zeichnet den Rest als Zwischenstand.
+    private void frame() {
+        long now = System.nanoTime();
+        accumulator += now - lastFrameNanos;
+        lastFrameNanos = now;
+
+        // Wer das Fenster verschiebt oder den Deckel zuklappt, kommt sonst
+        // zu einem Zeitraffer, in dem alle Bomben auf einmal hochgehen.
+        accumulator = Math.min(accumulator, TICK_NANOS * 3);
+
+        while (accumulator >= TICK_NANOS && game.getStatus() == GameStatus.RUNNING) {
+            accumulator -= TICK_NANOS;
+            logicTick();
+        }
+
+        if (game.getStatus() == GameStatus.RUNNING) {
+            window.setProgress(accumulator / (float) TICK_NANOS);
+            window.repaintBoard();
+        } else {
+            finish();
+        }
     }
 
     // Laeuft auf dem Event-Dispatch-Thread, genau wie die Tastendruecke.
     // Dadurch fasst nur ein einziger Thread den Spielzustand an und es
     // braucht kein synchronized - dasselbe Prinzip wie beim GameServer.
-    private void tick() {
+    private void logicTick() {
         for (int i = 0; i < game.getPlayers().size(); i++) {
             Player player = game.getPlayers().get(i);
 
-            Action action = pending[i];
-            pending[i] = null;
+            if (!player.isAlive()) {
+                bombRequested[i] = false;
+                continue;
+            }
 
-            if (action != null && player.isAlive()) {
-                service.applyAction(game, player, action);
+            // Bombe zuerst, Bewegung danach: so legt man sie ab und laeuft
+            // im selben Schritt weiter, statt einen Takt stehen zu bleiben.
+            if (bombRequested[i]) {
+                bombRequested[i] = false;
+                service.applyAction(game, player, Action.BOMB);
+            }
+
+            List<Direction> directions = held.get(i);
+            if (!directions.isEmpty()) {
+                service.applyAction(game, player,
+                    Action.move(directions.get(directions.size() - 1)));
             }
         }
 
         service.tick(game);
-        draw();
+        window.advanceTo(game);
+        showStatus();
+    }
 
-        if (game.getStatus() == GameStatus.FINISHED) {
-            timer.stop();
-            finish();
+    @Override
+    public void onPressed(int playerIndex, Action action) {
+        if (game == null || game.getStatus() != GameStatus.RUNNING) {
+            return;
+        }
+
+        if (action.getType() == Action.Type.BOMB) {
+            bombRequested[playerIndex] = true;
+            return;
+        }
+
+        if (action.getType() == Action.Type.MOVE) {
+            // Erst entfernen, dann anhaengen: die zuletzt gedrueckte
+            // Richtung gewinnt, auch wenn eine andere noch gehalten wird.
+            List<Direction> directions = held.get(playerIndex);
+            directions.remove(action.getDirection());
+            directions.add(action.getDirection());
         }
     }
 
     @Override
-    public void onAction(int playerIndex, Action action) {
-        if (game != null && game.getStatus() == GameStatus.RUNNING) {
-            pending[playerIndex] = action;
+    public void onReleased(int playerIndex, Action action) {
+        if (action.getType() == Action.Type.MOVE && held != null) {
+            held.get(playerIndex).remove(action.getDirection());
         }
     }
 
     private void restart() {
-        if (timer != null) {
-            timer.stop();
-        }
-
         GameMap map = loadMap();
         if (map == null) {
             return;
         }
 
-        game = newGame(map);
-        pending = new Action[game.getPlayers().size()];
+        startRound(map);
 
-        service.start(game);
-        draw();
-        timer.start();
+        if (timer != null && !timer.isRunning()) {
+            timer.start();
+        }
     }
 
-    private Game newGame(GameMap map) {
+    private void startRound(GameMap map) {
         List<Player> players = new ArrayList<>();
-
         for (int i = 0; i < playerCount; i++) {
             players.add(new Player("Spieler " + (char) ('A' + i), map.getSpawnPositions().get(i)));
         }
 
-        return new Game(map, players);
+        game = new Game(map, players);
+
+        held = new ArrayList<>();
+        for (int i = 0; i < playerCount; i++) {
+            held.add(new ArrayList<>());
+        }
+        bombRequested = new boolean[playerCount];
+
+        accumulator = 0;
+        lastFrameNanos = System.nanoTime();
+
+        service.start(game);
+        window.setGameImmediately(game);
+        showStatus();
     }
 
     private GameMap loadMap() {
@@ -155,13 +225,19 @@ public class SwingGame implements PlayerInput {
         }
     }
 
-    private void draw() {
-        window.showState(game,
-            "Runde " + game.getRound() + "     " + GameWindow.describePlayers(game),
-            GameWindow.describeKeys(keys, game.getPlayers().size()) + "     N: neues Spiel");
+    private void showStatus() {
+        window.showStatus("Runde " + game.getRound() + "     " + GameWindow.describePlayers(game));
+        window.showHint(GameWindow.describeKeys(keys, game.getPlayers().size()) + "     N: neues Spiel");
     }
 
     private void finish() {
+        timer.stop();
+
+        // Auf den Endstand einrasten, sonst bleibt eine Figur mitten
+        // zwischen zwei Feldern stehen.
+        window.setProgress(1f);
+        window.repaintBoard();
+
         Player winner = game.getWinner();
 
         if (winner == null) {
