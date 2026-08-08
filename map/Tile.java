@@ -32,4 +32,21 @@ public class Tile {
     public boolean isWalkable() {
         return type == TileType.GROUND;
     }
+
+    public void setBlock(Block block) {
+        this.block = block;
+        this.type = TileType.BLOCK;
+    }
+
+    // Gibt zurueck, ob wirklich etwas zerstoert wurde. Das braucht spaeter
+    // die Explosion, um zu wissen, wo sie stoppen muss.
+    public boolean destroyBlock() {
+        if (block == null || !block.isDestroyable()) {
+            return false;
+        }
+
+        this.block = null;
+        this.type = TileType.GROUND;
+        return true;
+    }
 }
