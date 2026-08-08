@@ -51,40 +51,39 @@ To practice the OOP paradigma with JAVA
 ## Starten
 
 Gebraucht wird ein JDK ab Version 17. `run.ps1` kompiliert alles nach `out/`
-und startet danach.
+und startet danach. Swing ist im JDK enthalten, es muss nichts nachinstalliert
+werden.
 
-**Lokal am selben PC (2 bis 4 Spieler, abwechselnd tippen):**
+| Aufruf | Was passiert |
+|---|---|
+| `.\run.ps1` | Fenster, **Echtzeit**, 2 Spieler an einer Tastatur |
+| `.\run.ps1 -ProgramArgs gui,4` | dasselbe mit 4 Spielern |
+| `.\run.ps1 -ProgramArgs gui,2,maps\arena.txt` | mit eigener Map |
+| `.\run.ps1 -ProgramArgs konsole` | Konsole, **rundenbasiert** |
+| `.\run.ps1 -ProgramArgs server,5555,2` | Server fuers Netzwerkspiel |
+| `.\run.ps1 -ProgramArgs client,127.0.0.1,5555` | Netzwerkspiel im Fenster |
+| `.\run.ps1 -ProgramArgs client-konsole,127.0.0.1,5555` | Netzwerkspiel auf der Konsole |
 
-```powershell
-.\run.ps1
-```
+Ein falscher Modus zeigt diese Liste an.
 
-**Mit eigener Map:**
-
-```powershell
-.\run.ps1 -ProgramArgs maps\arena.txt
-```
+**Lokal ist Echtzeit, im Netzwerk rundenbasiert.** Im Fenster tickt ein Timer
+alle 450 ms weiter, alle druecken gleichzeitig. Der Server dagegen wartet pro
+Runde auf einen Zug von jedem -- das haelt den Konsolen-Client lauffaehig
+(`Scanner.nextLine()` blockiert nun mal) und braucht ueber einen Hotspot keinen
+Lag-Ausgleich.
 
 Maps sind Textdateien: `#` unzerstoerbare Mauer, `o` zerstoerbarer Block,
 `.` Boden. Der Rand muss geschlossen und alle vier Ecken erreichbar sein,
 sonst lehnt der `MapValidator` sie ab.
 
+**Eigene Maps** sind Textdateien: `#` unzerstoerbare Mauer, `o` zerstoerbarer
+Block, `.` Boden. Der Rand muss geschlossen und alle vier Ecken erreichbar
+sein, sonst lehnt der `MapValidator` sie ab.
+
 **Uebers Netzwerk.** Ein PC startet den Server, alle spielen ueber Clients --
-auch der Server-PC braucht einen eigenen Client:
-
-```powershell
-.\run.ps1 -MainClass network.GameServer -ProgramArgs 5555,2
-```
-
-Der Server zeigt beim Start alle Adressen an, unter denen er erreichbar ist.
-Dann pro Spieler ein eigenes Konsolenfenster:
-
-```powershell
-.\run.ps1 -MainClass network.GameClient -ProgramArgs 127.0.0.1,5555
-```
-
-Fuer Mitspieler auf einem anderen PC statt `127.0.0.1` die Adresse
-einsetzen, die der Server angezeigt hat.
+auch der Server-PC braucht einen eigenen Client. Der Server zeigt beim Start
+alle Adressen an, unter denen er erreichbar ist. Fuer Mitspieler auf einem
+anderen PC statt `127.0.0.1` diese Adresse einsetzen.
 
 ### Ueber einen Handy-Hotspot
 
@@ -101,17 +100,29 @@ Internet wird nicht gebraucht -- der Hotspot muss nicht mal Daten haben.
 
 ## Steuerung
 
-| Taste | Wirkung |
-|---|---|
-| `w` `a` `s` `d` | ein Feld gehen |
-| `b` | Bombe legen |
-| `x` | eine Runde warten |
-| `q` | aufgeben |
+**Im Fenster**, alle an derselben Tastatur:
 
-Das Spiel ist rundenbasiert: alle Spieler geben ihren Zug ein, danach laeuft
-ein Tick -- Zuender zaehlen runter, faellige Bomben explodieren, Treffer
-werden ausgewertet. Wer als Letzter lebt, gewinnt.
+| Spieler | Bewegen | Bombe |
+|---|---|---|
+| A | `W` `A` `S` `D` | Leertaste |
+| B | Pfeiltasten | Enter |
+| C | `I` `J` `K` `L` | `U` |
+| D | Numblock `8` `4` `5` `6` | Numblock `0` |
 
-Zeichen auf dem Feld: `#` Mauer, `o` zerstoerbarer Block, `*` Feuer,
-`.` Boden, `A`-`D` Spieler, `x` Toter. `A2` heisst: Spieler A steht auf
-einer Bombe mit Zuender 2.
+`N` startet ein neues Spiel, `Esc` beendet. Im Netzwerk-Client spielt jeder
+mit `W A S D` und Leertaste, egal welche Farbe er hat.
+
+**Auf der Konsole:** `w` `a` `s` `d` gehen, `b` Bombe, `x` warten, `q`
+aufgeben.
+
+Zeichen auf dem Konsolenfeld: `#` Mauer, `o` zerstoerbarer Block, `*` Feuer,
+`.` Boden, `A`-`D` Spieler, `x` Toter. `A2` heisst: Spieler A steht auf einer
+Bombe mit Zuender 2. Im Fenster erscheint dafuer ein kleines Abzeichen in der
+Ecke des Feldes.
+
+## Spielablauf
+
+Zuender laufen 3 Ticks, die Explosion ist einen Tick sichtbar. Der Feuerstrahl
+stoppt am Rand, vor unzerstoerbaren Mauern und an einem zerstoerbaren Block,
+den er dabei wegsprengt. Bomben im Feuer gehen sofort mit hoch. Auf die eigene
+Bombe kommt man nicht zurueck. Wer als Letzter lebt, gewinnt.
