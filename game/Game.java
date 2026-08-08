@@ -61,7 +61,13 @@ public class Game {
     }
 
     public void nextRound() {
-        round++;
+        setRound(round + 1);
+    }
+
+    // Wird beim Wiederherstellen eines Zustands gebraucht, etwa wenn der
+    // Client den Stand vom Server empfaengt.
+    public void setRound(int round) {
+        this.round = round;
     }
 
     public List<Player> getAlivePlayers() {
