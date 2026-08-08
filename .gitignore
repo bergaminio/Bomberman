@@ -3,3 +3,6 @@ out/
 bin/
 .vscode/*
 !.vscode/settings.json
+
+# Wird beim Spielen erzeugt, gehoert niemandem ausser dem eigenen PC.
+highscores.txt
