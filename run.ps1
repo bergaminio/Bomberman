@@ -1,8 +1,14 @@
 # Kompiliert alle .java-Dateien nach out/ und startet danach Main.
-# Aufruf:  .\run.ps1
-# Eigene Map laden:          .\run.ps1 -ProgramArgs maps\arena.txt
-# Nur bauen, nicht starten:  .\run.ps1 -NoRun
-# Andere Klasse starten:     .\run.ps1 -MainClass network.GameServer
+#
+# Fenster, Echtzeit, 2 Spieler:  .\run.ps1
+# Drei Spieler:                  .\run.ps1 -ProgramArgs gui,3
+# Eigene Map:                    .\run.ps1 -ProgramArgs gui,2,maps\arena.txt
+# Konsole, rundenbasiert:        .\run.ps1 -ProgramArgs konsole
+# Server:                        .\run.ps1 -ProgramArgs server,5555,2
+# Netzwerk im Fenster:           .\run.ps1 -ProgramArgs client,127.0.0.1,5555
+# Netzwerk auf der Konsole:      .\run.ps1 -ProgramArgs client-konsole,127.0.0.1,5555
+#
+# Nur bauen, nicht starten:      .\run.ps1 -NoRun
 
 param(
     [string]$MainClass = "Main",

@@ -7,8 +7,6 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 
 import common.Action;
 import game.Game;
@@ -71,7 +69,7 @@ public class GameClient {
 
             // Ein Zustand kommt mehrzeilig und endet mit einer Endmarke.
             if (line.equals(GameStateCodec.START)) {
-                game = GameStateCodec.decode(readUntilEnd(reader));
+                game = GameStateCodec.readFrom(reader);
                 view.render(game);
                 continue;
             }
@@ -115,21 +113,6 @@ public class GameClient {
         if (action == null) {
             view.showMessage("Du hast aufgegeben.");
         }
-    }
-
-    private List<String> readUntilEnd(BufferedReader reader) throws IOException {
-        List<String> lines = new ArrayList<>();
-        String line;
-
-        while ((line = reader.readLine()) != null) {
-            if (line.equals(GameStateCodec.END)) {
-                return lines;
-            }
-
-            lines.add(line);
-        }
-
-        throw new IOException("Verbindung mitten im Spielstand abgerissen.");
     }
 
     private void showResult(ConsoleView view, String winner) {
