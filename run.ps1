@@ -1,10 +1,12 @@
 # Kompiliert alle .java-Dateien nach out/ und startet danach Main.
 # Aufruf:  .\run.ps1
+# Eigene Map laden:          .\run.ps1 -ProgramArgs maps\arena.txt
 # Nur bauen, nicht starten:  .\run.ps1 -NoRun
 # Andere Klasse starten:     .\run.ps1 -MainClass network.GameServer
 
 param(
     [string]$MainClass = "Main",
+    [string[]]$ProgramArgs = @(),
     [switch]$NoRun
 )
 
@@ -33,4 +35,4 @@ Write-Host "Kompilieren OK." -ForegroundColor Green
 if ($NoRun) { exit 0 }
 
 Write-Host "Starte $MainClass ...`n" -ForegroundColor Cyan
-java -cp out $MainClass
+java -cp out $MainClass @ProgramArgs
