@@ -31,13 +31,13 @@ import service.MovementService;
 // Wuerde man die Logik einfach 60-mal pro Sekunde ticken lassen, rasten die
 // Figuren mit 60 Feldern pro Sekunde ueber die Karte.
 public class SwingGame implements PlayerInput {
-    private static final int TICK_MS = 220;
+    private static final int TICK_MS = 180;
     private static final long TICK_NANOS = TICK_MS * 1_000_000L;
     private static final int FRAME_MS = 16;
 
-    // Bei 220 ms pro Tick sind das rund zwei Sekunden Zuender und gut eine
+    // Bei 180 ms pro Tick sind das rund zwei Sekunden Zuender und gut eine
     // halbe Sekunde Feuer. Auf der Konsole bleiben es 3 und 1 Zug.
-    private static final int FUSE_TICKS = 9;
+    private static final int FUSE_TICKS = 11;
     private static final int EXPLOSION_TICKS = 3;
 
     private static final int MAP_WIDTH = 13;
@@ -56,6 +56,13 @@ public class SwingGame implements PlayerInput {
 
     // Welche Richtungen gerade gehalten werden, zuletzt gedrueckte zuletzt.
     private List<List<Direction>> held;
+
+    // Die zuletzt gedrueckte Richtung, die noch keinen Schritt bekommen hat.
+    // Ohne das geht ein kurzer Tastendruck verloren: wer schneller antippt
+    // als ein Tick dauert, hat die Taste beim naechsten Tick laengst wieder
+    // losgelassen und "held" ist leer.
+    private Direction[] tapped;
+
     private boolean[] bombRequested;
 
     private long lastFrameNanos;
@@ -126,6 +133,7 @@ public class SwingGame implements PlayerInput {
 
             if (!player.isAlive()) {
                 bombRequested[i] = false;
+                tapped[i] = null;
                 continue;
             }
 
@@ -136,16 +144,30 @@ public class SwingGame implements PlayerInput {
                 service.applyAction(game, player, Action.BOMB);
             }
 
-            List<Direction> directions = held.get(i);
-            if (!directions.isEmpty()) {
-                service.applyAction(game, player,
-                    Action.move(directions.get(directions.size() - 1)));
+            Direction direction = directionFor(i);
+            tapped[i] = null;
+
+            if (direction != null) {
+                service.applyAction(game, player, Action.move(direction));
             }
         }
 
         service.tick(game);
         window.advanceTo(game);
         showStatus();
+    }
+
+    // Gehaltene Taste gewinnt. Ist keine mehr gedrueckt, kommt der letzte
+    // kurze Anschlag zum Zug - jeder Tastendruck ergibt so mindestens
+    // einen Schritt, egal wie kurz er war.
+    private Direction directionFor(int playerIndex) {
+        List<Direction> directions = held.get(playerIndex);
+
+        if (!directions.isEmpty()) {
+            return directions.get(directions.size() - 1);
+        }
+
+        return tapped[playerIndex];
     }
 
     @Override
@@ -165,6 +187,8 @@ public class SwingGame implements PlayerInput {
             List<Direction> directions = held.get(playerIndex);
             directions.remove(action.getDirection());
             directions.add(action.getDirection());
+
+            tapped[playerIndex] = action.getDirection();
         }
     }
 
@@ -200,6 +224,7 @@ public class SwingGame implements PlayerInput {
         for (int i = 0; i < playerCount; i++) {
             held.add(new ArrayList<>());
         }
+        tapped = new Direction[playerCount];
         bombRequested = new boolean[playerCount];
 
         accumulator = 0;
@@ -225,9 +250,16 @@ public class SwingGame implements PlayerInput {
         }
     }
 
+    // Kein Rundenzaehler: im Echtzeitmodus ist ein Tick nur ein interner
+    // Rechenschritt, keine Spielrunde. Beim Netzwerk-Client bleibt er
+    // stehen, dort ist eine Runde wirklich ein Zug pro Spieler.
     private void showStatus() {
-        window.showStatus("Runde " + game.getRound() + "     " + GameWindow.describePlayers(game));
+        window.showStatus(GameWindow.describePlayers(game));
         window.showHint(GameWindow.describeKeys(keys, game.getPlayers().size()) + "     N: neues Spiel");
+    }
+
+    private int secondsPlayed() {
+        return Math.round(game.getRound() * TICK_MS / 1000f);
     }
 
     private void finish() {
@@ -243,7 +275,7 @@ public class SwingGame implements PlayerInput {
         if (winner == null) {
             window.showStatus("Unentschieden - niemand hat ueberlebt.");
         } else {
-            window.showStatus(winner.getName() + " gewinnt nach " + game.getRound() + " Runden!");
+            window.showStatus(winner.getName() + " gewinnt nach " + secondsPlayed() + " Sekunden!");
             saveWin(winner);
         }
 

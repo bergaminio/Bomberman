@@ -67,10 +67,10 @@ werden.
 Ein falscher Modus zeigt diese Liste an.
 
 **Lokal ist Echtzeit, im Netzwerk rundenbasiert.** Im Fenster laeuft die
-Spiellogik in Schritten von 220 ms, gezeichnet wird mit 60 Bildern pro Sekunde
+Spiellogik in Schritten von 180 ms, gezeichnet wird mit 60 Bildern pro Sekunde
 -- dazwischen wird die Figur interpoliert, damit sie gleitet statt zu springen.
-Richtungstaste gedrueckt halten laeuft weiter. Der Zuender ist dort 9 Ticks
-lang, also rund zwei Sekunden.
+Richtungstaste gedrueckt halten laeuft weiter, ein kurzer Anschlag ergibt genau
+einen Schritt. Der Zuender ist dort 11 Ticks lang, also rund zwei Sekunden.
 
 Der Server dagegen wartet pro Runde auf einen Zug von jedem. Das haelt den
 Konsolen-Client lauffaehig (`Scanner.nextLine()` blockiert nun mal) und braucht
